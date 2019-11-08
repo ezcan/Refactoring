@@ -33,12 +33,57 @@ const invoices = {
   ]
 }
 
-// main function
-function statement(invoice, plays) {
-  let totalAmount = 0;
-  let volumeCredits = 0;
-  let result = `Statement for ${invoice.customer}\n`
+// =============================================================================
+class Plays {
+  // 簡單工廠模式
+  static create(type, audience = 0) {
+    const list = {
+      tragedy: Tragedy,
+      comedy: Comedy
+    }
+    return new list[type](audience)
+  }
 
+  constructor(audience) {
+    this.baseAmount = 0
+    this.audience = audience || 0
+  }
+
+  getCredit(audience) {
+    return Math.max(this.audience - 30, 0)
+  }
+}
+
+class Tragedy extends Plays {
+  constructor(audience) {
+    super(audience)
+    this.baseAmount = 40000
+  }
+
+  getAmoumt() {
+    let baseBonus = Math.max(this.audience - 30, 0) * 1000
+    return this.baseAmount + baseBonus
+  }
+}
+
+class Comedy extends Plays {
+  constructor(audience) {
+    super(audience)
+    this.baseAmount = 30000
+  }
+
+  getAmoumt() {
+    let baseBonus = this.audience * 300
+    let extraBonus = this.audience < 20 ? 0 : Math.max(this.audience - 20) * 500 + 10000
+    return this.baseAmount + baseBonus + extraBonus
+  }
+
+  getCredit() {
+    return Math.max(this.audience - 30, 0) + Math.floor(this.audience / 5)
+  }
+}
+
+function USD(amount) {
   const format = new Intl.NumberFormat(
     "en-US",
     {
@@ -47,40 +92,24 @@ function statement(invoice, plays) {
       minimumFractionDigits: 2
     }
   ).format;
+  return format(amount / 100)
+}
 
+// main function
+function statement(invoice, plays) {
+  let totalAmount = 0;
+  let volumeCredits = 0;
+  let result = `Statement for ${invoice.customer}\n`
   for (let perf of invoice.performances) {
-    const play = plays[perf.playID];
-    let thisAmount = 0;
-
-    switch (play.type) {
-      case "tragedy":
-        thisAmount = 40000;
-        if (perf.audience > 30) {
-          thisAmount += 1000 * (perf.audience - 30);
-        }
-        break;
-      case "comedy":
-        thisAmount = 30000;
-        if (perf.audience > 20) {
-          thisAmount += 10000 + 500 * (perf.audience - 20);
-        }
-        thisAmount += 300 * perf.audience;
-        break;
-      default:
-        throw new Error(`unknow type: ${play.type}`);
-    }
-
-    // 加入 volume credit
-    volumeCredits += Math.max(perf.audience - 30, 0);
-
-    if ("comedy" === play.type) volumeCredits += Math.floor(perf.audience / 5);
-
+    const { type, name } = plays[perf.playID];
+    let play = Plays.create(type, perf.audience)
+    let amount = play.getAmoumt()
     // 印出這筆訂單
-    result += `${play.name}: ${format(thisAmount / 100)} (${perf.audience} seats)\n`;
-    totalAmount += thisAmount;
+    result += `${name}: ${USD(amount)} (${perf.audience} seats)\n`;
+    volumeCredits += play.getCredit()
+    totalAmount += amount;
   }
-
-  result += `Amount owed is ${format(totalAmount / 100)}\n`;
+  result += `Amount owed is ${USD(totalAmount)}\n`;
   result += `You earned ${volumeCredits} credits\n`;
   return result;
 }
